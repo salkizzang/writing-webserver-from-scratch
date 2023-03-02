@@ -1,10 +1,19 @@
 package com.eddicorp;
 
+import com.eddicorp.quiz.self.HttpRequest;
+import com.eddicorp.quiz.week1.application.service.posts.Post;
+import com.samskivert.mustache.Mustache;
+import com.samskivert.mustache.Template;
+
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class WebApplication {
 
@@ -16,54 +25,84 @@ public class WebApplication {
                     final InputStream inputStream = clientSocket.getInputStream();
                     final OutputStream outputStream = clientSocket.getOutputStream();
             ){
+                HttpRequest httpRequest = new HttpRequest(inputStream);
+                String uri = httpRequest.getUri();
+                String method = httpRequest.getMethod();
 
-//                StringBuilder sb = new StringBuilder();
-//                int readCharacter;
-//                while((readCharacter = inputStream.read())!=-1){
-//                    char tmp = (char) readCharacter;
-//                    if(tmp=='\r'){
-//                        char isEndCheck = (char) inputStream.read();
-//                        if(isEndCheck=='\n'){
-//                            sb.append(isEndCheck);
-//                        }
-//                    }
-//                    sb.append(tmp);
-//                }
 
-//                final StringBuilder stringBuilder = new StringBuilder();
-//                int readCharacter;
-//                while ((readCharacter = inputStream.read()) != -1) {
-//                    final char currentChar = (char) readCharacter;
-//                    if (currentChar == '\r') {
-//                        if (((char) inputStream.read()) == '\n') {
-//                            System.out.println(stringBuilder.toString());
-//                        } else {
-//                            throw new IllegalStateException("Invalid HTTP request.");
-//                        }
-//                    }
-//                    stringBuilder.append(currentChar);
-//                }
-
-                final String filePath = Paths.get("pages", "index.html").toString();
-                final InputStream staticFileInputStream = WebApplication.class.getClassLoader().getResourceAsStream(filePath);
-                final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                int readCount = 0;
-                final byte[] readBuffer = new byte[8192];
-                while((readCount = staticFileInputStream.read(readBuffer))!=-1){
-                    baos.write(readBuffer, 0, readCount);
+                String fileName;
+                if("/".equals(uri)){
+                    fileName = "index.html";
+                }else{
+                    fileName = uri;
                 }
-                byte[] rawFile = baos.toByteArray();
-                final String statusLine = "HTTP/1.1 200 OK\r\n";
-                final String contentLength = "Content-Length: "+rawFile.length+"\r\n";
-                final String contentHeader = "Content-Type: text/html;\r\n\r\n";
-                outputStream.write(statusLine.getBytes(StandardCharsets.UTF_8));
-                outputStream.write(contentLength.getBytes(StandardCharsets.UTF_8));
-                outputStream.write(contentHeader.getBytes(StandardCharsets.UTF_8));
-                outputStream.write(rawFile);
-                outputStream.flush();
+
+                String extension = null;
+                final int indexOfPeriod = uri.lastIndexOf(".");
+                if (indexOfPeriod != -1) {
+                    extension = uri.substring(indexOfPeriod + 1);
+                }
+
+                String mimeType = "text/html; charset=utf-8";
+                if(extension==null){
+                    mimeType = "text/html; charset=utf-8";
+                }
+
+                if ("html".equals(extension)) {
+                    mimeType = "text/html; charset=utf-8";
+                }
+
+                if ("css".equals(extension)) {
+                    mimeType = "text/css; charset=utf-8";
+                }
+
+                if ("svg".equals(extension)) {
+                    mimeType = "image/svg+xml";
+                }
+
+                if ("ico".equals(extension)) {
+                    mimeType = "image/x-icon";
+                }
+
+                final byte[] rawFileToServe = readFileFromResourceStream(fileName);
+                String renderedPage="";
+                System.out.println(uri);
+
+                final String CRLF = "\r\n";
+                if(method.equals("GET")) {
+                    String contentType = "Content-Type: " + mimeType + "\r\n";
+                    String contentLength = "Content-Length: " + rawFileToServe.length + "\r\n";
+                    String statusLine = "HTTP/1.1 200 OK" + CRLF;
+                    outputStream.write(statusLine.getBytes(StandardCharsets.UTF_8));
+                    outputStream.write(contentLength.getBytes(StandardCharsets.UTF_8));
+                    outputStream.write(contentType.getBytes(StandardCharsets.UTF_8));
+                    outputStream.write(CRLF.getBytes(StandardCharsets.UTF_8));
+                    outputStream.write(rawFileToServe);
+                    outputStream.flush();
+                }
             }catch (IOException e){
                 throw new RuntimeException(e);
             }
+        }
+    }
+
+    private static byte[] readFileFromResourceStream(String fileName) throws IOException {
+        final String filePath = Paths.get("pages", fileName).toString();
+        try (
+                final InputStream resourceInputStream = WebApplication.class
+                        .getClassLoader()
+                        .getResourceAsStream(filePath);
+                final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        ) {
+            if (resourceInputStream == null) {
+                return null;
+            }
+            int readCount = 0;
+            final byte[] readBuffer = new byte[8192];
+            while ((readCount = resourceInputStream.read(readBuffer)) != -1) {
+                baos.write(readBuffer, 0, readCount);
+            }
+            return baos.toByteArray();
         }
     }
 }
