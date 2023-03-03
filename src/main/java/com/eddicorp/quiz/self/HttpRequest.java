@@ -19,22 +19,15 @@ public class HttpRequest {
 
     public HttpRequest(InputStream inputStream) throws IOException {
         InputStreamReader isReader = new InputStreamReader(inputStream);
-        BufferedReader br = new BufferedReader(isReader);
         final String rawRequestLine = readLine(inputStream);
         final String[] partsOfRequestLine = rawRequestLine.split(" ");
         this.uri = partsOfRequestLine[1];
         this.method = partsOfRequestLine[0];
-        StringBuilder payload = new StringBuilder();
-        while(br.ready()){
-            payload.append((char) br.read());
+        String header;
+        System.out.println(rawRequestLine);
+        while(!"".equals(header = readLine(inputStream))){
+            System.out.println("header = " + header);
         }
-        String[] splitRequest = new String(payload).split("\r\n");
-        System.out.println(splitRequest[splitRequest.length-1]);
-//        System.out.println("Payload data is: "+payload.toString());
-//        String header;
-//        while(!"".equals(header = readLine(inputStream))){
-//            System.out.println("header = " + header);
-//        }
 
         final int available = inputStream.available();
         if(available>0){
@@ -42,8 +35,12 @@ public class HttpRequest {
             inputStream.read(bytes, 0, available);
             String s = new String(bytes);
             System.out.println("s = "+s);
+            String[] splitBody = s.split("&");
+            for (String param : splitBody) {
+                String[] splitParam = param.split("=");
+                parameterMap.put(splitParam[0], splitParam[1]);
+            }
         }
-
     }
 
 

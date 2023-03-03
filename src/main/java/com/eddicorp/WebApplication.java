@@ -1,7 +1,10 @@
 package com.eddicorp;
 
 import com.eddicorp.quiz.self.HttpRequest;
+import com.eddicorp.quiz.week1.application.repository.users.UserRepository;
+import com.eddicorp.quiz.week1.application.repository.users.UserRepositoryImpl;
 import com.eddicorp.quiz.week1.application.service.posts.Post;
+import com.eddicorp.quiz.week1.application.service.users.User;
 import com.samskivert.mustache.Mustache;
 import com.samskivert.mustache.Template;
 
@@ -30,6 +33,17 @@ public class WebApplication {
                 String method = httpRequest.getMethod();
 
 
+
+                if("/login".equals(uri)){
+                    UserRepository userRepository = UserRepositoryImpl.getInstance();
+                    String usrNm = httpRequest.getParameter("username");
+                    String pwd = httpRequest.getParameter("password");
+                    userRepository.signUp(new User(usrNm, pwd));
+                    System.out.println(userRepository.findByUsername("test"));
+                    method = "GET";
+                    uri = "/";
+                }
+
                 String fileName;
                 if("/".equals(uri)){
                     fileName = "index.html";
@@ -47,19 +61,15 @@ public class WebApplication {
                 if(extension==null){
                     mimeType = "text/html; charset=utf-8";
                 }
-
                 if ("html".equals(extension)) {
                     mimeType = "text/html; charset=utf-8";
                 }
-
                 if ("css".equals(extension)) {
                     mimeType = "text/css; charset=utf-8";
                 }
-
                 if ("svg".equals(extension)) {
                     mimeType = "image/svg+xml";
                 }
-
                 if ("ico".equals(extension)) {
                     mimeType = "image/x-icon";
                 }
