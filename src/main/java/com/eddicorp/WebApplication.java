@@ -1,10 +1,17 @@
 package com.eddicorp;
 
 import com.eddicorp.quiz.self.HttpRequest;
+import com.eddicorp.quiz.week1.application.repository.posts.PostRepository;
+import com.eddicorp.quiz.week1.application.repository.posts.PostRepositoryImpl;
 import com.eddicorp.quiz.week1.application.repository.users.UserRepository;
 import com.eddicorp.quiz.week1.application.repository.users.UserRepositoryImpl;
 import com.eddicorp.quiz.week1.application.service.posts.Post;
+import com.eddicorp.quiz.week1.application.service.posts.PostService;
+import com.eddicorp.quiz.week1.application.service.posts.PostServiceImpl;
 import com.eddicorp.quiz.week1.application.service.users.User;
+import com.eddicorp.quiz.week1.http.response.ResponseCookie;
+import com.eddicorp.quiz.week1.http.session.HttpSession;
+import com.eddicorp.quiz.week1.http.session.SessionManager;
 import com.samskivert.mustache.Mustache;
 import com.samskivert.mustache.Template;
 
@@ -23,6 +30,12 @@ public class WebApplication {
     public static void main(String[] args) throws IOException {
         final ServerSocket serverSocket = new ServerSocket(8080);
         Socket clientSocket;
+        SessionManager sessionManager = new SessionManager();
+        HttpSession httpSession = null;
+        String sessionId = "";
+        UserRepository userRepository = UserRepositoryImpl.getInstance();
+//        PostRepository postRepository = PostRepositoryImpl.getInstance();
+        PostService postService = new PostServiceImpl();
         while((clientSocket = serverSocket.accept()) != null){
             try(
                     final InputStream inputStream = clientSocket.getInputStream();
@@ -31,22 +44,66 @@ public class WebApplication {
                 HttpRequest httpRequest = new HttpRequest(inputStream);
                 String uri = httpRequest.getUri();
                 String method = httpRequest.getMethod();
+                final Map<String, Object> context = new HashMap<>();
+                ResponseCookie cookie = null;
 
-
-
+                // 로그인
                 if("/login".equals(uri)){
-                    UserRepository userRepository = UserRepositoryImpl.getInstance();
+                    String usrNm = httpRequest.getParameter("username");
+                    String pwd = httpRequest.getParameter("password");
+                    User loginUser = userRepository.findByUsername(usrNm);
+                    method = "GET";
+                    uri = "/";
+                    if(loginUser!=null&&loginUser.getPassword().equals(pwd)){
+                        sessionId = sessionManager.createNewSession();
+                        System.out.println("SessionId = " + sessionId);
+                        httpSession = sessionManager.getSession(sessionId);
+                        httpSession.setAttribute("USER", loginUser);
+                        cookie = new ResponseCookie("id", loginUser.getUsername(), "/","localhost",9999);
+                    }
+
+                }
+                // 회원가입
+                if("/users".equals(uri)){
                     String usrNm = httpRequest.getParameter("username");
                     String pwd = httpRequest.getParameter("password");
                     userRepository.signUp(new User(usrNm, pwd));
-                    System.out.println(userRepository.findByUsername("test"));
                     method = "GET";
+                    uri = "/";
+                }
+
+                //글쓰기
+                if("/post".equals(uri)){
+                    String usrId = httpRequest.getCookie("id");
+                    String title = httpRequest.getParameter("title");
+                    String content = httpRequest.getParameter("content");
+                    if(usrId!=null) postService.write(usrId, title, content);
+                    else postService.write("anonymous", title, content);
+                    System.out.println(usrId);
+                    uri = "/";
+                    method = "GET";
+                }
+                //로그아웃
+                if("/logout".equals(uri)){
+                    httpSession = sessionManager.getSession(sessionId);
+                    httpSession.removeAttribute("USER");
+                    sessionManager.removeSession(sessionId);
+                    httpRequest.deleteCookie();
+                    cookie = null;
                     uri = "/";
                 }
 
                 String fileName;
                 if("/".equals(uri)){
                     fileName = "index.html";
+                    List<Post> posts = postService.getAllPosts();
+                    context.put("posts", posts);
+                    for (Post post : posts) {
+                        System.out.println(post.toString());
+                        context.put("title", post.getTitle());
+                        context.put("author", post.getAuthor());
+                        context.put("content", post.getContent());
+                    }
                 }else{
                     fileName = uri;
                 }
@@ -75,19 +132,31 @@ public class WebApplication {
                 }
 
                 final byte[] rawFileToServe = readFileFromResourceStream(fileName);
-                String renderedPage="";
-                System.out.println(uri);
+                final Mustache.Compiler compiler = Mustache.compiler();
+                System.out.println(new String(rawFileToServe));
+                final Template template = compiler.compile(new String(rawFileToServe));
 
+                if(httpSession != null && httpSession.getAttribute("USER") != null){
+                    context.put("isLoggedIn", true);
+                }else{
+                    context.put("isLoggedIn", false);
+                }
+                String renderedPage = template.execute(context);
+                System.out.println("@@@@@@@@@@@@");
+                System.out.println(renderedPage);
+                System.out.println(uri);
                 final String CRLF = "\r\n";
                 if(method.equals("GET")) {
-                    String contentType = "Content-Type: " + mimeType + "\r\n";
-                    String contentLength = "Content-Length: " + rawFileToServe.length + "\r\n";
+                    String contentType = "Content-Type: " + mimeType + CRLF;
+                    String contentLength = "Content-Length: " + renderedPage.getBytes(StandardCharsets.UTF_8).length + CRLF;
                     String statusLine = "HTTP/1.1 200 OK" + CRLF;
                     outputStream.write(statusLine.getBytes(StandardCharsets.UTF_8));
+                    if(cookie != null) outputStream.write(("Set-Cookie : "+cookie.build()+CRLF).getBytes(StandardCharsets.UTF_8));
+                    if(cookie == null) outputStream.write(("Set-Cookie : "+CRLF).getBytes(StandardCharsets.UTF_8));
                     outputStream.write(contentLength.getBytes(StandardCharsets.UTF_8));
                     outputStream.write(contentType.getBytes(StandardCharsets.UTF_8));
                     outputStream.write(CRLF.getBytes(StandardCharsets.UTF_8));
-                    outputStream.write(rawFileToServe);
+                    outputStream.write(renderedPage.getBytes(StandardCharsets.UTF_8));
                     outputStream.flush();
                 }
             }catch (IOException e){

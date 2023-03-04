@@ -1,6 +1,5 @@
 package com.eddicorp.quiz.self;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -11,6 +10,7 @@ public class HttpRequest {
     private final String uri;
     private final String method;
     private final Map<String, String> parameterMap = new HashMap<>();
+    private final Map<String, String> cookieMap = new HashMap<>();
 
     public String getUri() {
         return uri;
@@ -27,6 +27,19 @@ public class HttpRequest {
         System.out.println(rawRequestLine);
         while(!"".equals(header = readLine(inputStream))){
             System.out.println("header = " + header);
+            String[] findCookie = header.split(":");
+            if("Cookie".equals(findCookie[0])){
+                String[] cookieSplit = findCookie[1].trim().split(";");
+                for (String cookies : cookieSplit) {
+                    String[] idCookie = cookies.trim().split("=");
+                    System.out.println(idCookie[0]);
+                    System.out.println(idCookie[1]);
+                    cookieMap.put(idCookie[0], idCookie[1]);
+//                    if("id".equals(idCookie)){
+//                        cookieMap.put("id", )
+//                    }
+                }
+            }
         }
 
         final int available = inputStream.available();
@@ -47,6 +60,12 @@ public class HttpRequest {
     public String getParameter(String parameterName) {
         return parameterMap.get(parameterName);
     }
+    public String getCookie(String parameterName) {
+        return cookieMap.get(parameterName);
+    }
+    public String deleteCookie(){
+        return cookieMap.remove("id");
+    }
 
     private static String readLine(InputStream inputStream) throws IOException {
         final StringBuilder stringBuilder = new StringBuilder();
@@ -63,16 +82,6 @@ public class HttpRequest {
             stringBuilder.append(currentChar);
         }
         throw new IllegalStateException("Unable to find CRLF");
-    }
-
-    private static void readBody(InputStream inputStream) throws IOException {
-        final StringBuilder stringBuilder = new StringBuilder();
-        int readCharacter;
-        while ((readCharacter = inputStream.read()) != -1) {
-            final char currentChar = (char) readCharacter;
-            stringBuilder.append(currentChar);
-        }
-        System.out.println(stringBuilder);
     }
 
 }
